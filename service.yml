@@ -1,0 +1,113 @@
+service:
+  name: aac-traccar
+  friendly_name: GPS
+  image_repo: traccar/traccar
+  image_tag: 6.16
+  description: GPS Tracking Platform
+  icon: traccar.png
+  category: Finanzen - Dokumente - Organisation
+  stage: prod
+  hostname: gps
+ports:
+- name: web
+  port: 8082
+  external_port: 8882
+  protocol: TCP
+config:
+  domain_name: example.com
+  generate_hostname: false
+  integrations:
+    homepage:
+      enabled: true
+    autodns:
+      enabled: true
+    traefik:
+      enabled: true
+      cert_resolver: ionos
+      entrypoint: websecure
+  schema_version: 2
+stage_overrides:
+  prod:
+    config:
+      generate_hostname: false
+    service:
+      hostname: gps
+secrets:
+  TRACCAR_DB_PASSWORD: CHANGE_ME
+  MARIADB_ROOT_PASSWORD: CHANGE_ME
+  MARIADB_PASSWORD: CHANGE_ME
+volumes:
+  data:
+    description: Traccar application data
+  logs:
+    description: Traccar log files
+  db:
+    description: Data for database
+deployment_strategy:
+  main:
+    enabled: true
+    target_stage: prod
+  dev:
+    enabled: true
+    target_stage: dev
+  test:
+    enabled: false
+    target_stage: test
+  ansible-dev:
+    enabled: true
+    target_stage: dev
+  iac-dev:
+    enabled: true
+    target_stage: dev
+  template-dev:
+    enabled: true
+    target_stage: dev
+deployments:
+  docker_compose:
+    restart_policy: always
+    host_base_path: /export/docker
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '10'
+    volumes:
+    - data:/opt/traccar/data
+    - logs:/opt/traccar/logs
+    environment:
+      MARIADB_DATABASE: '{{ vars.MARIADB_DATABASE }}'
+      MARIADB_USER: '{{ vars.MARIADB_USER }}'
+      PUID: '{{ vars.PUID }}'
+      PGID: '{{ vars.PGID }}'
+      TZ: '{{ vars.TZ }}'
+      TRACCAR_DB_DRIVER: '{{ vars.TRACCAR_DB_DRIVER }}'
+      TRACCAR_DB_URL: '{{ vars.TRACCAR_DB_URL }}'
+      TRACCAR_DB_USER: '{{ vars.TRACCAR_DB_USER }}'
+      LOG_LEVEL: '{{ vars.LOG_LEVEL }}'
+      TRACCAR_DB_PASSWORD: '{{ secrets.TRACCAR_DB_PASSWORD }}'
+      MARIADB_ROOT_PASSWORD: '{{ secrets.MARIADB_ROOT_PASSWORD }}'
+      MARIADB_PASSWORD: '{{ secrets.MARIADB_PASSWORD }}'
+dependencies:
+  database:
+    import: catalog/mariadb.yml
+    overrides:
+      name: aac-traccar-db
+      image_tag: 12.3.1-ubi10-rc
+      volumes:
+        db:
+          target: /var/lib/mysql
+          description: Persistent storage for db
+      environment:
+        PUID: '{{ vars.PUID }}'
+        PGID: '{{ vars.PGID }}'
+        TZ: '{{ vars.TZ }}'
+vars:
+  MARIADB_DATABASE: traccar
+  MARIADB_USER: traccar
+  PUID: '1000'
+  PGID: '1000'
+  TZ: Europe/Berlin
+  TRACCAR_DB_DRIVER: CHANGE_ME
+  TRACCAR_DB_URL: https://gps.example.com
+  TRACCAR_DB_USER: traccar
+  LOG_LEVEL: info

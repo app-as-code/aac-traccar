@@ -1,0 +1,110 @@
+services:
+  # --- Main Application Service ---
+  aac-traccar:
+    image: "traccar/traccar:6.16"
+    container_name: "aac-traccar"
+    hostname: "gps"
+    restart: "always"
+
+
+    environment:
+      MARIADB_DATABASE: "traccar"
+      MARIADB_USER: "traccar"
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Berlin"
+      TRACCAR_DB_DRIVER: "${TRACCAR_DB_DRIVER:?set TRACCAR_DB_DRIVER in .env (see .env.example)}"
+      TRACCAR_DB_URL: "https://gps.example.com"
+      TRACCAR_DB_USER: "traccar"
+      LOG_LEVEL: "info"
+      TRACCAR_DB_PASSWORD: "${TRACCAR_DB_PASSWORD:?set TRACCAR_DB_PASSWORD in .env (see .env.example)}"
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env (see .env.example)}"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env (see .env.example)}"
+    ports:
+      - "8882:8082/tcp"
+
+    volumes:
+      - "/export/docker/aac-traccar/data:/opt/traccar/data"
+      - "/export/docker/aac-traccar/logs:/opt/traccar/logs"
+
+    networks:
+      - exposed
+      - interconnect
+      - secured
+      - stack_internal
+
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.aac-traccar.rule: "Host(`gps.example.com`)"
+      traefik.http.routers.aac-traccar.entrypoints: "websecure"
+      traefik.http.routers.aac-traccar.tls: "true"
+      traefik.http.routers.aac-traccar.tls.certresolver: "ionos"
+      traefik.docker.network: "services-secured"
+      traefik.http.services.aac-traccar.loadbalancer.server.port: "8082"
+      traefik.http.services.aac-traccar.loadbalancer.server.scheme: "http"
+      auto-dns.createWildcard.aac-traccar: "false"
+      auto-dns.customDNS.aac-traccar: "true"
+      auto-dns.customDOMAIN.aac-traccar: "example.com"
+      auto-dns.customHost.aac-traccar: "gps"
+      homepage.group: "Finanzen - Dokumente - Organisation"
+      homepage.name: "GPS"
+      homepage.href: "https://gps.example.com"
+      homepage.icon: "traccar.png"
+      homepage.description: "GPS Tracking Platform"
+
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '10'
+    depends_on:
+      aac-traccar-db:
+        condition: service_healthy
+
+
+  # --- Service Dependencies (Sidecars) ---
+  aac-traccar-db:
+    image: "mariadb:12.3.1-ubi10-rc"
+    container_name: "aac-traccar-db"
+    restart: "always"
+    
+
+    env_file:
+      - .env
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Berlin"
+
+
+    volumes:
+      - "/export/docker/aac-traccar/db:/var/lib/mysql"
+
+    networks:
+      - stack_internal
+
+
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost --silent || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+
+
+networks:
+  secured:
+    name: "services-secured"
+    external: true
+  exposed:
+    name: "services-exposed"
+    external: true
+  interconnect:
+    name: "docker-default"
+    external: true
+  stack_internal:
+    name: "aac-traccar_stack_internal"
+    driver: "bridge"
+
